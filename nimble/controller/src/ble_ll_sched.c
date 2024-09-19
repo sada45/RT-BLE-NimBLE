@@ -432,6 +432,10 @@ static int ble_ll_sched_central_new_insert(struct ble_ll_sched_item *sch,
     }
 	if (connsm->conn_handle == 1 && ble_ll_conn_active_connsm_num() == 1) {
 		sch->start_time = base_tick;
+        sch->end_time = base_tick + duration;
+        rtt_printf("base_tick = ");
+        rtt_print_uint32(base_tick);
+        rtt_printf("\n");
 	}
 	else {
 		if (connsm->offset % 2 == 0) {
@@ -439,6 +443,24 @@ static int ble_ll_sched_central_new_insert(struct ble_ll_sched_item *sch,
 			sch->start_time = n * 328 + base_tick;
 		}
 		else {
+            /* RT-BLE+: bug fix: sometimes, the start_time can be small and the value in 
+               sch->start_time - base_tick - 165 is negative but in uint32_t, so the n is very large (e.g., 13094413)
+               and the start time of the sch is overflowed and exactly pass the max_start_time check
+            */
+            if (sch->start_time < (base_tick + 165)) {
+                rtt_print_uint32((uint32_t)connsm->conn_handle);
+                rtt_printf("u32overflow-");
+                rtt_print_uint32(sch->start_time);
+                rtt_printf("-");
+                rtt_print_uint32(base_tick);
+                n = (sch->start_time - base_tick - 165) / 328 + 1;
+                rtt_printf("-");
+                rtt_print_uint32(n);
+                rtt_printf("\n");
+            }
+            while (sch->start_time < (base_tick + 165)) {
+                sch->start_time += 328;
+            }
 			n = (sch->start_time - base_tick - 165) / 328 + 1;
 			sch->start_time = n * 328 + base_tick + 164;
 		}
@@ -508,18 +530,19 @@ static int ble_ll_sched_central_new_insert(struct ble_ll_sched_item *sch,
     }
 	if (connsm->conn_handle == 1 && ble_ll_conn_active_connsm_num() == 1) {
 		sch->start_time = base_tick;
+        sch->start_time = bast_tick + duration;
 	}
 	else {
 		off_tick = base_tick + connsm->offset * 41;
-        rtt_printf(", off_tick = ");
-		rtt_print_uint32(off_tick);
-		rtt_printf(",max_delay = ");
-		rtt_print_uint32(max_start_time);
-		rtt_printf(", sch base_tick = ");
-		rtt_print_uint32(base_tick);
-		rtt_printf(", connsmoffset=");
-		rtt_print_uint32((uint32_t)connsm->offset);
-		rtt_printf("\n");
+        // rtt_printf(", off_tick = ");
+		// rtt_print_uint32(off_tick);
+		// rtt_printf(",max_delay = ");
+		// rtt_print_uint32(max_start_time);
+		// rtt_printf(", sch base_tick = ");
+		// rtt_print_uint32(base_tick);
+		// rtt_printf(", connsmoffset=");
+		// rtt_print_uint32((uint32_t)connsm->offset);
+		// rtt_printf("\n");
 		while (LL_TMR_GEQ(max_start_time, off_tick)) {
 			if (max_delay != 0 && LL_TMR_GEQ(off_tick, sch->start_time) && LL_TMR_GEQ(max_start_time, off_tick)) {
 				sch->start_time = off_tick;
